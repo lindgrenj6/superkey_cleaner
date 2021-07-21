@@ -43,6 +43,7 @@ func main() {
 
 	for _, report := range reportNames {
 		fmt.Printf("\tDeleting report %v\n", report)
+
 		_, err := costClient.DeleteReportDefinition(ctx, &cost.DeleteReportDefinitionInput{
 			ReportName: &report,
 		})
@@ -69,7 +70,8 @@ func main() {
 	}
 
 	fmt.Printf("Deleting Buckets: [%v]\n", strings.Join(bucketNames, ","))
-	time.Sleep(time.Second)
+	fmt.Println("Hit Ctrl-C to abort, sleeping 5s...")
+	time.Sleep(5 * time.Second)
 
 	for _, bucket := range bucketNames {
 		fmt.Printf("\tDeleting bucket %v\n", bucket)
