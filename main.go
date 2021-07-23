@@ -29,10 +29,10 @@ func main() {
 	reports, err := costClient.DescribeReportDefinitions(ctx, nil)
 	panicOn(err)
 
-	// pulling out all of the reports that have the 'redhat-' prefix
-	reportNames := make([]string, len(reports.ReportDefinitions))
+	// pulling out all of the reports that have the 'koku-' prefix
+	reportNames := make([]string, 0, len(reports.ReportDefinitions))
 	for _, report := range reports.ReportDefinitions {
-		if strings.HasPrefix(*report.ReportName, "redhat-") {
+		if strings.HasPrefix(*report.ReportName, "koku-") {
 			reportNames = append(reportNames, *report.ReportName)
 		}
 	}
