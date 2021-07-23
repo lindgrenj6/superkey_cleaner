@@ -2,22 +2,24 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	cost "github.com/aws/aws-sdk-go-v2/service/costandusagereportservice"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 var ctx = context.Background()
+var cfg aws.Config
 
 func main() {
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		panic("configuration error, " + err.Error())
-	}
+	setupConfig()
 
 	costClient := cost.NewFromConfig(cfg)
 	s3Client := s3.NewFromConfig(cfg)
@@ -96,6 +98,36 @@ func main() {
 	}
 
 	fmt.Println("Deleted all Reports + Attached buckets successsfully!")
+}
+
+func setupConfig() {
+	cli := flag.Bool("cli", false, "use the current `awscli` context, e.g. `./superkey_cleaner -cli`")
+	access := flag.String("access", "", "which access key to use")
+	secret := flag.String("secret", "", "which secret key to use")
+	flag.Parse()
+
+	var err error
+
+	if *access != "" && *secret != "" {
+		fmt.Println("Loading from cli args...")
+		cfg, err = config.LoadDefaultConfig(ctx,
+			config.WithCredentialsProvider(
+				credentials.NewStaticCredentialsProvider(*access, *secret, "cleaner"),
+			),
+		)
+		if err != nil {
+			panic("configuration error, " + err.Error())
+		}
+	} else if *cli {
+		fmt.Println("Loading from awscli config...")
+		cfg, err = config.LoadDefaultConfig(ctx)
+		if err != nil {
+			panic("configuration error, " + err.Error())
+		}
+	} else {
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
 }
 
 func panicOn(err error) {

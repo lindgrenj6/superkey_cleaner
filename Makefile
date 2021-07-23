@@ -16,4 +16,7 @@ lint:
 	go vet ./...
 	golangci-lint run -E gofmt,gci,bodyclose,forcetypeassert,misspell
 
+gci:
+	golangci-lint run -E gci --fix
+
 .PHONY: build run clean debug lint 
