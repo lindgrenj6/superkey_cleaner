@@ -10,7 +10,8 @@ clean:
 	go clean
 
 run: build
-	./superkey_cleaner
+	@echo Running with awscli, run \'./superkey_cleaner -access xxx -secret yyy\' to clean a specific account
+	./superkey_cleaner -cli
 
 lint:
 	go vet ./...
