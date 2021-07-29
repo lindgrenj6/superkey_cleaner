@@ -59,7 +59,7 @@ func main() {
 	buckets, err := s3Client.ListBuckets(ctx, nil)
 	panicOn(err)
 
-	bucketNames := make([]string, len(buckets.Buckets))
+	bucketNames := make([]string, 0, len(buckets.Buckets))
 	for _, bucket := range buckets.Buckets {
 		for _, report := range reportNames {
 			pieces := strings.Split(report, "-")
