@@ -38,26 +38,29 @@ func main() {
 		log.Printf("Deleting role + policy: %q", guid)
 
 		for _, policy := range policies.Policies {
-			if strings.HasSuffix(*policy.PolicyName, guid) {
-				_, err = iamClient.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
-					PolicyArn: policy.Arn,
-					RoleName:  role.RoleName,
-				})
-				panicOn(err)
-				log.Printf("Unbound policy from role for: %q", guid)
-
-				_, err = iamClient.DeletePolicy(ctx, &iam.DeletePolicyInput{
-					PolicyArn: policy.Arn,
-				})
-				panicOn(err)
-				log.Printf("Deleted Policy for: %q", guid)
-
-				_, err = iamClient.DeleteRole(ctx, &iam.DeleteRoleInput{
-					RoleName: role.RoleName,
-				})
-				panicOn(err)
-				log.Printf("Deleted Role for: %q", guid)
+			// skip all of the policies that don't have the same guid
+			if !strings.HasSuffix(*policy.PolicyName, guid) {
+				continue
 			}
+
+			_, err = iamClient.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
+				PolicyArn: policy.Arn,
+				RoleName:  role.RoleName,
+			})
+			panicOn(err)
+			log.Printf("Unbound policy from role for: %q", guid)
+
+			_, err = iamClient.DeletePolicy(ctx, &iam.DeletePolicyInput{
+				PolicyArn: policy.Arn,
+			})
+			panicOn(err)
+			log.Printf("Deleted Policy for: %q", guid)
+
+			_, err = iamClient.DeleteRole(ctx, &iam.DeleteRoleInput{
+				RoleName: role.RoleName,
+			})
+			panicOn(err)
+			log.Printf("Deleted Role for: %q", guid)
 		}
 	}
 }
