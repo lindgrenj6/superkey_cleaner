@@ -20,4 +20,4 @@ lint:
 gci:
 	golangci-lint run -E gci --fix
 
-.PHONY: build run clean debug lint 
+.PHONY: build run clean debug lint

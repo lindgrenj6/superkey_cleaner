@@ -2,16 +2,14 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"os"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	cost "github.com/aws/aws-sdk-go-v2/service/costandusagereportservice"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
@@ -21,6 +19,51 @@ var cfg aws.Config
 func main() {
 	setupConfig()
 
+	iamClient := iam.NewFromConfig(cfg)
+
+	roles, err := iamClient.ListRoles(ctx, nil)
+	panicOn(err)
+
+	policies, err := iamClient.ListPolicies(ctx, nil)
+	panicOn(err)
+
+	for _, role := range roles.Roles {
+		// skip any non-cloudmeter roles
+		if !strings.HasPrefix(*role.RoleName, "redhat-cloud-meter") {
+			continue
+		}
+
+		parts := strings.Split(*role.RoleName, "-")
+		guid := parts[len(parts)-1]
+		log.Printf("Deleting role + policy: %q", guid)
+
+		for _, policy := range policies.Policies {
+			if strings.HasSuffix(*policy.PolicyName, guid) {
+				_, err = iamClient.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
+					PolicyArn: policy.Arn,
+					RoleName:  role.RoleName,
+				})
+				panicOn(err)
+				log.Printf("Unbound policy from role for: %q", guid)
+
+				_, err = iamClient.DeletePolicy(ctx, &iam.DeletePolicyInput{
+					PolicyArn: policy.Arn,
+				})
+				panicOn(err)
+				log.Printf("Deleted Policy for: %q", guid)
+
+				_, err = iamClient.DeleteRole(ctx, &iam.DeleteRoleInput{
+					RoleName: role.RoleName,
+				})
+				panicOn(err)
+				log.Printf("Deleted Role for: %q", guid)
+			}
+		}
+	}
+}
+
+// call function if you want to clean up s3 buckets + reports
+func removeCostThings() {
 	costClient := cost.NewFromConfig(cfg)
 	s3Client := s3.NewFromConfig(cfg)
 
@@ -59,7 +102,7 @@ func main() {
 	buckets, err := s3Client.ListBuckets(ctx, nil)
 	panicOn(err)
 
-	bucketNames := make([]string, 0, len(buckets.Buckets))
+	bucketNames := make([]string, 0)
 	for _, bucket := range buckets.Buckets {
 		for _, report := range reportNames {
 			pieces := strings.Split(report, "-")
@@ -98,40 +141,4 @@ func main() {
 	}
 
 	fmt.Println("Deleted all Reports + Attached buckets successsfully!")
-}
-
-func setupConfig() {
-	cli := flag.Bool("cli", false, "use the current `awscli` context, e.g. `./superkey_cleaner -cli`")
-	access := flag.String("access", "", "which access key to use")
-	secret := flag.String("secret", "", "which secret key to use")
-	flag.Parse()
-
-	var err error
-
-	if *access != "" && *secret != "" {
-		fmt.Println("Loading from cli args...")
-		cfg, err = config.LoadDefaultConfig(ctx,
-			config.WithCredentialsProvider(
-				credentials.NewStaticCredentialsProvider(*access, *secret, "cleaner"),
-			),
-		)
-		if err != nil {
-			panic("configuration error, " + err.Error())
-		}
-	} else if *cli {
-		fmt.Println("Loading from awscli config...")
-		cfg, err = config.LoadDefaultConfig(ctx)
-		if err != nil {
-			panic("configuration error, " + err.Error())
-		}
-	} else {
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
-}
-
-func panicOn(err error) {
-	if err != nil {
-		panic(err)
-	}
 }
