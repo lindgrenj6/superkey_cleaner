@@ -13,6 +13,10 @@ run: build
 	@echo Running with awscli, run \'./superkey_cleaner -access xxx -secret yyy\' to clean a specific account
 	./superkey_cleaner -cli
 
+inlinerun:
+	@echo Running with awscli, run \'./superkey_cleaner -access xxx -secret yyy\' to clean a specific account
+	go run *.go -cli
+
 lint:
 	go vet ./...
 	golangci-lint run -E gofmt,gci,bodyclose,forcetypeassert,misspell
