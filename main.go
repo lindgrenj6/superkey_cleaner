@@ -13,17 +13,59 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-var ctx = context.Background()
-var cfg aws.Config
-var iamClient *iam.Client
+var (
+	ctx = context.Background()
+	cfg aws.Config
+)
 
 func main() {
 	setupConfig()
 
-	iamClient = iam.NewFromConfig(cfg)
-
 	removeIamThings()
 	removeCostThings()
+}
+
+func removeIamThings() {
+	iamClient := iam.NewFromConfig(cfg)
+
+	roles := try(iamClient.ListRoles(ctx, nil))
+	policies := try(iamClient.ListPolicies(ctx, nil))
+
+	for _, role := range roles.Roles {
+		// skip any non-superkey roles
+		if !strings.HasPrefix(*role.RoleName, "redhat-") {
+			continue
+		}
+
+		parts := strings.Split(*role.RoleName, "-")
+		guid := parts[len(parts)-1]
+		log.Printf("Deleting role + policy: %q", guid)
+
+		for _, policy := range policies.Policies {
+			// skip all of the policies that don't have the same guid
+			if !strings.HasSuffix(*policy.PolicyName, guid) {
+				continue
+			}
+
+			try(iamClient.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
+				PolicyArn: policy.Arn,
+				RoleName:  role.RoleName,
+			}))
+			log.Printf("Unbound policy from role for: %q", guid)
+
+			try(iamClient.DeletePolicy(ctx, &iam.DeletePolicyInput{
+				PolicyArn: policy.Arn,
+			}))
+			log.Printf("Deleted Policy for: %q", guid)
+
+			try(iamClient.DeleteRole(ctx, &iam.DeleteRoleInput{
+				RoleName: role.RoleName,
+			}))
+			log.Printf("Deleted Role for: %q", guid)
+		}
+	}
+
+	fmt.Println("Deleted all Roles + Attached Policies successsfully!")
 }
 
 // call function if you want to clean up s3 buckets + reports
@@ -103,47 +145,6 @@ func removeCostThings() {
 	}
 
 	fmt.Println("Deleted all Reports + Attached buckets successsfully!")
-}
-
-func removeIamThings() {
-	roles := try(iamClient.ListRoles(ctx, nil))
-	policies := try(iamClient.ListPolicies(ctx, nil))
-
-	for _, role := range roles.Roles {
-		// skip any non-cloudmeter roles
-		if !strings.HasPrefix(*role.RoleName, "redhat-") {
-			continue
-		}
-
-		parts := strings.Split(*role.RoleName, "-")
-		guid := parts[len(parts)-1]
-		log.Printf("Deleting role + policy: %q", guid)
-
-		for _, policy := range policies.Policies {
-			// skip all of the policies that don't have the same guid
-			if !strings.HasSuffix(*policy.PolicyName, guid) {
-				continue
-			}
-
-			try(iamClient.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
-				PolicyArn: policy.Arn,
-				RoleName:  role.RoleName,
-			}))
-			log.Printf("Unbound policy from role for: %q", guid)
-
-			try(iamClient.DeletePolicy(ctx, &iam.DeletePolicyInput{
-				PolicyArn: policy.Arn,
-			}))
-			log.Printf("Deleted Policy for: %q", guid)
-
-			try(iamClient.DeleteRole(ctx, &iam.DeleteRoleInput{
-				RoleName: role.RoleName,
-			}))
-			log.Printf("Deleted Role for: %q", guid)
-		}
-	}
-
-	fmt.Println("Deleted all Roles + Attached Policies successsfully!")
 }
 
 func try[T any](thing T, err error) T {
