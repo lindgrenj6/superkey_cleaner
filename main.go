@@ -35,8 +35,7 @@ func removeCostThings() {
 	// Deleting Cost and Usage Reports (to get around ReportLimitExceeded Exception)
 	// --------------------
 
-	reports, err := costClient.DescribeReportDefinitions(ctx, nil)
-	panicOn(err)
+	reports := try(costClient.DescribeReportDefinitions(ctx, nil))
 
 	// pulling out all of the reports that have the 'koku-' prefix
 	reportNames := make([]string, 0, len(reports.ReportDefinitions))
@@ -54,10 +53,9 @@ func removeCostThings() {
 		for _, report := range reportNames {
 			fmt.Printf("\tDeleting report %v\n", report)
 
-			_, err := costClient.DeleteReportDefinition(ctx, &cost.DeleteReportDefinitionInput{
+			try(costClient.DeleteReportDefinition(ctx, &cost.DeleteReportDefinitionInput{
 				ReportName: &report,
-			})
-			panicOn(err)
+			}))
 		}
 	}
 
@@ -65,8 +63,7 @@ func removeCostThings() {
 	// Deleting related s3 buckets
 	// --------------------
 
-	buckets, err := s3Client.ListBuckets(ctx, nil)
-	panicOn(err)
+	buckets := try(s3Client.ListBuckets(ctx, nil))
 
 	bucketNames := make([]string, 0)
 	for _, bucket := range buckets.Buckets {
@@ -88,23 +85,20 @@ func removeCostThings() {
 		for _, bucket := range bucketNames {
 			fmt.Printf("\tDeleting bucket %v\n", bucket)
 
-			objects, err := s3Client.ListObjects(ctx, &s3.ListObjectsInput{
+			objects := try(s3Client.ListObjects(ctx, &s3.ListObjectsInput{
 				Bucket: &bucket,
-			})
-			panicOn(err)
+			}))
 
 			for _, object := range objects.Contents {
-				_, err := s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+				try(s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 					Bucket: &bucket,
 					Key:    object.Key,
-				})
-				panicOn(err)
+				}))
 			}
 
-			_, err = s3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{
+			try(s3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{
 				Bucket: &bucket,
-			})
-			panicOn(err)
+			}))
 		}
 	}
 
@@ -112,11 +106,8 @@ func removeCostThings() {
 }
 
 func removeIamThings() {
-	roles, err := iamClient.ListRoles(ctx, nil)
-	panicOn(err)
-
-	policies, err := iamClient.ListPolicies(ctx, nil)
-	panicOn(err)
+	roles := try(iamClient.ListRoles(ctx, nil))
+	policies := try(iamClient.ListPolicies(ctx, nil))
 
 	for _, role := range roles.Roles {
 		// skip any non-cloudmeter roles
@@ -134,26 +125,31 @@ func removeIamThings() {
 				continue
 			}
 
-			_, err = iamClient.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
+			try(iamClient.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
 				PolicyArn: policy.Arn,
 				RoleName:  role.RoleName,
-			})
-			panicOn(err)
+			}))
 			log.Printf("Unbound policy from role for: %q", guid)
 
-			_, err = iamClient.DeletePolicy(ctx, &iam.DeletePolicyInput{
+			try(iamClient.DeletePolicy(ctx, &iam.DeletePolicyInput{
 				PolicyArn: policy.Arn,
-			})
-			panicOn(err)
+			}))
 			log.Printf("Deleted Policy for: %q", guid)
 
-			_, err = iamClient.DeleteRole(ctx, &iam.DeleteRoleInput{
+			try(iamClient.DeleteRole(ctx, &iam.DeleteRoleInput{
 				RoleName: role.RoleName,
-			})
-			panicOn(err)
+			}))
 			log.Printf("Deleted Role for: %q", guid)
 		}
 	}
 
 	fmt.Println("Deleted all Roles + Attached Policies successsfully!")
+}
+
+func try[T any](thing T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+
+	return thing
 }

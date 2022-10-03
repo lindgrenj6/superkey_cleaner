@@ -15,32 +15,18 @@ func setupConfig() {
 	secret := flag.String("secret", "", "which secret key to use")
 	flag.Parse()
 
-	var err error
-
 	if *access != "" && *secret != "" {
 		fmt.Println("Loading from cli args...")
-		cfg, err = config.LoadDefaultConfig(ctx,
+		cfg = try(config.LoadDefaultConfig(ctx,
 			config.WithCredentialsProvider(
 				credentials.NewStaticCredentialsProvider(*access, *secret, "cleaner"),
 			),
-		)
-		if err != nil {
-			panic("configuration error, " + err.Error())
-		}
+		))
 	} else if *cli {
 		fmt.Println("Loading from awscli config...")
-		cfg, err = config.LoadDefaultConfig(ctx)
-		if err != nil {
-			panic("configuration error, " + err.Error())
-		}
+		cfg = try(config.LoadDefaultConfig(ctx))
 	} else {
 		flag.PrintDefaults()
 		os.Exit(1)
-	}
-}
-
-func panicOn(err error) {
-	if err != nil {
-		panic(err)
 	}
 }
